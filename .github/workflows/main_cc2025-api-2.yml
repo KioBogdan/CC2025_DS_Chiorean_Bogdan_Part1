@@ -63,4 +63,5 @@ jobs:
         with:
           app-name: 'cc2025-api-2'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_A7FA366F899640FC879C4701CFC958B0 }}
+
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_API }}
