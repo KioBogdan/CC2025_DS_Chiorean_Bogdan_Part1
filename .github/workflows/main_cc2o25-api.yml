@@ -65,7 +65,7 @@ jobs:
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_2FB8AA9E49B847A9ACABCB972C96E296 }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_CFBEF49879C34B3581915DA9DDEA536A }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_9AECA1DB473D4397BA7B9DBD25EBAA13 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
@@ -73,4 +73,5 @@ jobs:
         with:
           app-name: 'cc2O25-api'
           slot-name: 'Production'
+
           
