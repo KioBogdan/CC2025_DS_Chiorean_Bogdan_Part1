@@ -52,4 +52,5 @@ jobs:
           app-name: 'cc2025-ui-2'
           slot-name: 'Production'
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E4CF5634AD6A43159C4FCC8B7EBA6CEE }}
+
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_UI }}
