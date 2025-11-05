@@ -68,7 +68,8 @@ jobs:
           slot-name: 'Production'
           
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_UI }}
-          package: react-app-build
+          package: ./react-app-build
+
 
 
 
