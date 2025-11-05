@@ -1,0 +1,76 @@
+name: Build and deploy Python app to Azure Web App - cc2025-api-2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'BE/**'
+      - '.github/workflows/main_cc2025-api-2.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify repo contents
+        run: |
+          echo "===== Repo root ====="
+          pwd
+          ls -la
+          echo "===== BE folder ====="
+          ls -la BE || echo "BE folder not found"
+
+      - name: Set up Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: BE
+        run: |
+          echo "Inside BE:"
+          pwd
+          ls -la
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || (echo "requirements.txt missing or invalid" && exit 1)
+
+      - name: Show what will be uploaded
+        run: |
+          echo "Uploading these files:"
+          ls -R BE
+
+      - name: Upload artifact for deployment jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-app
+          path: BE/*
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: python-app
+
+      - name: Check downloaded files
+        run: |
+          echo "===== Artifact after download ====="
+          pwd
+          ls -la
+          ls -R
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'cc2025-api-2'
+          slot-name: 'Production'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_API }}
+          package: '.'
