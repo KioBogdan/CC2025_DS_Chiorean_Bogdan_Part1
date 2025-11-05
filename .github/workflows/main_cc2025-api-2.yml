@@ -73,4 +73,5 @@ jobs:
           app-name: 'cc2025-api-2'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_API }}
-          package: 'BE'
+          package: '.'
+
