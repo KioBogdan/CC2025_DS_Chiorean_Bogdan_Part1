@@ -48,7 +48,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: react-app-build
-          path: FE/my-frontend/build
+          path: FE/my-frontend/build/*
 
   deploy:
     runs-on: ubuntu-latest
@@ -69,6 +69,7 @@ jobs:
           
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_UI }}
           package: ./react-app-build
+
 
 
 
