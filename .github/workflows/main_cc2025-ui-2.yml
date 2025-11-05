@@ -43,12 +43,13 @@ jobs:
         run: |
           cd FE/my-frontend
           npm run build
+          zip -r react-app-build.zip build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: react-app-build
-          path: FE/my-frontend/build/*
+          path: FE/my-frontend/react-app-build.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -59,6 +60,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: react-app-build
+          path: .
       
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
@@ -68,7 +70,8 @@ jobs:
           slot-name: 'Production'
           
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_UI }}
-          package: ./react-app-build
+          package: react-app-build.zip
+
 
 
 
