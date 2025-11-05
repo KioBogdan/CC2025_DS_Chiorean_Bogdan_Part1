@@ -8,7 +8,7 @@ on:
     branches:
       - main
     paths:
-      - 'FE/**'
+      - 'FE/my-frontend/**'
       - '.github/workflows/main_cc2025-ui-2.yml'
   workflow_dispatch:
 
@@ -26,17 +26,29 @@ jobs:
         with:
           node-version: '18.x'
 
-      - name: npm install, build, and test
-        run: |
-          npm install
-          npm run build --if-present
-          npm run test --if-present
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: FE/my-frontend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('FE/my-frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      - name: Upload artifact for deployment job
+      - name: Install dependencies
+        run: |
+          cd FE/my-frontend
+          npm install
+
+      - name: Build React app
+        run: |
+          cd FE/my-frontend
+          npm run build
+
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: node-app
-          path: .
+          name: react-app-build
+          path: FE/my-frontend/build
 
   deploy:
     runs-on: ubuntu-latest
@@ -46,7 +58,7 @@ jobs:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
-          name: node-app
+          name: react-app-build
       
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
@@ -56,6 +68,7 @@ jobs:
           slot-name: 'Production'
           
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_UI }}
-          package: .
+          package: react-app-build
+
 
 
