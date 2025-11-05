@@ -21,7 +21,7 @@ jobs:
       - name: Set up Node.js version
         uses: actions/setup-node@v3
         with:
-          node-version: '20.x'
+          node-version: '18.x'
 
       - name: npm install, build, and test
         run: |
@@ -51,6 +51,7 @@ jobs:
         with:
           app-name: 'cc2025-ui-2'
           slot-name: 'Production'
+          
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_UI }}
           package: .
 
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_UI }}
