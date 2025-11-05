@@ -3,7 +3,7 @@ atomicwrites==1.4.0
 databricks-cli==0.18.0
 duckdb==1.2.2
 fastapi==0.119.0
-json5
+json5==0.9.15                # latest stable version compatible with Py3.12
 jsonpointer==2.1
 numpy==1.26.4
 oauthlib==3.2.2
@@ -12,12 +12,12 @@ polars==1.27.0
 protobuf==4.25.3
 pyasn1==0.5.0
 pyasn1-modules==0.2.8
-pywin32==305.1
-PyQt5==5.15.10
-PyQtWebEngine==5.15.6
-pyls-spyder==0.4.0
+# pywin32 removed — Windows-only, not needed on Linux/Mac
+# PyQt5 removed — can be installed separately if GUI needed
+# PyQtWebEngine removed — same as above
+# pyls-spyder removed — optional; only for Spyder IDE
 starlette==0.48.0
 uvicorn==0.38.0
 wheel==0.44.0
 matplotlib==3.9.2
-mkl-service==2.4.0
+# mkl-service removed — only needed if using Intel MKL optimizations
