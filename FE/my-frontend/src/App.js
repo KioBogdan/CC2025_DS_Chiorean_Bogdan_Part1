@@ -6,7 +6,7 @@ function App() {
   
   //Button click function
   const connectToBackend = () => {
-    const apiBaseUrl = process.env.REACT_UI_APP_AZURE_URL;
+    const apiBaseUrl = process.env.REACT_APP_AZURE_URL;
 
     //GET request to FastAPI backend //fetch('http://localhost:8000/api/connect')
     fetch(`${apiBaseUrl}/api/connect`)
