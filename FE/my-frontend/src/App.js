@@ -6,8 +6,10 @@ function App() {
   
   //Button click function
   const connectToBackend = () => {
-    //GET request to FastAPI backend
-    fetch('http://localhost:8000/api/connect')
+    const apiBaseUrl = process.env.REACT_UI_APP_AZURE_URL;
+    
+    //GET request to FastAPI backend //fetch('http://localhost:8000/api/connect')
+    fetch('${apiBaseUrl}/api/connect')
       .then(response => {
         if(!response.ok) {
           throw new Error('Network response was not ok');

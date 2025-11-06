@@ -1,14 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware #cors policies
+from dotenv import load_dotenv
+import os
 
-#Create FastAPI app instance
-app = FastAPI()
+# Load .env file
+load_dotenv()
 
-# --------  CORS config ------------
-origins = [
-    "http://localhost:3000",  # The default port for create-react-app
-    "localhost:3000"
-]
+# Read allowed origins from environment
+origins_env = os.getenv("ALLOWED_ORIGINS", "")
+origins = [origin.strip() for origin in origins_env.split(",") if origin.strip()]
+
+app = FastAPI() #Create fastAPI instance
+
 
 app.add_middleware(
     CORSMiddleware,
