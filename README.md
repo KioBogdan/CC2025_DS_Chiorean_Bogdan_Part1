@@ -1,4 +1,4 @@
-# 🌐 Cloudl Computing - Part 1
+# 🌐 Cloud Computing - Part 1
   
 Part 1 of the Cloud Computing semester project demonstrates a simple frontend-backend connection deployed on Azure, using **Azure App Services**.
 
