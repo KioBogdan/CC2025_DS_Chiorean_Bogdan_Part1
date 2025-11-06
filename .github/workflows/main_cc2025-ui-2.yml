@@ -36,12 +36,19 @@ jobs:
           cd FE/my-frontend
           npm install
 
-      - name: Build React app
+      - name: Build React app with backend URL
         run: |
           cd FE/my-frontend
-          npm run build
+          # Inject backend URL at build time
+          REACT_APP_AZURE_URL=${{ secrets.REACT_APP_AZURE_URL }} npm run build
           cd build
+          # Zip only the contents of build folder
           zip -r ../react-app-build.zip .
+
+      - name: Inspect build artifact
+        run: |
+          echo "===== Inspect react-app-build.zip ====="
+          unzip -l FE/my-frontend/react-app-build.zip
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -63,7 +70,7 @@ jobs:
       - name: Check artifact contents
         run: |
           echo "===== Artifact contents ====="
-          ls -R
+          unzip -l react-app-build.zip
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
@@ -72,4 +79,3 @@ jobs:
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_UI }}
           package: react-app-build.zip
-
