@@ -24,3 +24,9 @@ wheel==0.44.0
 matplotlib==3.9.2
 # mkl-service removed — only needed if using Intel MKL optimizations
 
+#JWT
+python-jose[cryptography]==3.5.0
+requests==2.32.5
+cryptography==46.0.3
+
+
