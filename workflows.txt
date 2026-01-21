@@ -1,9 +1,0 @@
--- Remote-first branch on Github
-
-1. git fetch origin (make sure you are on the same branch -- main in our case)
-2. git pull origin main 
-3. git status (verify sync)
-
-//optionally, if we dont care about local changes
-git fetch origin
-git reset --hard origin/main -- hard reset
