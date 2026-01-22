@@ -47,7 +47,7 @@ function App() {
   const [dashStatus, setDashStatus] = useState("");
 
   const apiBaseUrl = useMemo(() => {
-    return process.env.REACT_APP_LOCAL_URL || process.env.REACT_APP_UI_AZURE_URL;
+    return process.env.REACT_APP_AZURE_URL || process.env.REACT_APP_LOCAL_URL;
   }, []);
 
   const connectToBackend = () => {

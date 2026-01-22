@@ -3,7 +3,7 @@ name: Build and deploy Node.js app to Azure Web App - cc2025-ui-2
 on:
   push:
     branches:
-      - main
+      - [ "main", "final" ]
     paths:
       - 'FE/my-frontend/**'
       - '.github/workflows/main_cc2025-ui-2.yml'
