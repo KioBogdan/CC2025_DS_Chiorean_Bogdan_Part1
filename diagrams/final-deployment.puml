@@ -1,0 +1,63 @@
+@startuml
+title Final - UML Deployment Diagram (End-to-End)
+
+skinparam shadowing false
+
+node "User Device" {
+  artifact "Browser" as Browser
+}
+
+node "AWS Cloud" {
+  node "Amazon Cognito" as Cognito {
+    artifact "User Pool\nGroups\ncustom:device_id" as UP
+  }
+}
+
+node "Azure Cloud" {
+  node "App Service (Frontend)" as WebFE {
+    artifact "React SPA\nCharts + Table" as React
+  }
+
+  node "App Service (Backend)" as WebAPI {
+    artifact "FastAPI\nProtected endpoints\nBlob read" as FastAPI
+  }
+
+  node "Storage Account" as Storage {
+    artifact "Blob: processed\nlatest/...\nby-timestamp/..." as Blobs
+  }
+
+  node "Data Factory" as DF {
+    artifact "Pipeline\nMapping Data Flow" as Pipeline
+  }
+
+  node "Function App" as FA {
+    artifact "Azure Function\nBlob Trigger\nTeams notify" as Func
+  }
+
+  node "Monitoring" as Mon {
+    artifact "App Service Logs" as ASLogs
+    artifact "ADF Logs" as ADFLogs
+    artifact "Function Logs" as FnLogs
+  }
+}
+
+node "Microsoft 365" {
+  artifact "Teams Channel" as Teams
+}
+
+Browser --> React : HTTPS
+React --> Cognito : Auth (OIDC)
+React --> FastAPI : HTTPS\nBearer JWT
+
+FastAPI --> Cognito : JWKS validation
+FastAPI --> Blobs : Read latest JSON
+
+Pipeline --> Blobs : Write processed outputs
+Blobs --> Func : Trigger on new/updated blob
+Func --> Teams : Post message
+
+FastAPI --> ASLogs
+Pipeline --> ADFLogs
+Func --> FnLogs
+
+@enduml

@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from auth import get_current_user
 from storage import read_latest_device_json, list_latest_devices
 import os
+from datetime import datetime
+from collections import defaultdict
 
 load_dotenv() # Load .env file
 
@@ -86,6 +88,92 @@ def get_devices(user=Depends(get_current_user)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins only")
     return {"devices": list_latest_devices()}
 
+########################
+#### FINAL Assignment
+########################
+
+def _parse_ts(ts: str) -> datetime:
+    # handles "2025-09-15T08:00:00+00:00"
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+def _get_effective_device_id(device_id: str | None, user: dict) -> tuple[str, bool]:
+    groups = user.get("cognito:groups") or []
+    is_admin = "admin" in groups
+    user_device = user.get("custom:device_id")
+
+    if is_admin:
+        if not device_id:
+            raise HTTPException(status_code=400, detail="Missing required query parameter: device_id")
+        return device_id, True
+
+    if not user_device:
+        raise HTTPException(status_code=403, detail="User has no custom:device_id claim; access denied")
+    return user_device, False
+
+@app.get("/api/latest")
+def latest_table(
+    device_id: str | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=2000),
+    user=Depends(get_current_user),
+):
+    effective_device_id, is_admin = _get_effective_device_id(device_id, user)
+
+    payload = read_latest_device_json(effective_device_id)
+    records = payload.get("records", [])
+
+    # sort by timestamp desc
+    records_sorted = sorted(records, key=lambda r: _parse_ts(r["timestamp"]), reverse=True)
+    return {
+        "device_id": effective_device_id,
+        "is_admin": is_admin,
+        "count": len(records),
+        "records": records_sorted[:limit],
+    }
+
+@app.get("/api/trend")
+def trend(
+    device_id: str | None = Query(default=None),
+    bucket: str = Query(default="day"),  # "day" or "hour"
+    user=Depends(get_current_user),
+):
+    effective_device_id, is_admin = _get_effective_device_id(device_id, user)
+
+    payload = read_latest_device_json(effective_device_id)
+    records = payload.get("records", [])
+
+    if bucket not in ("day", "hour"):
+        raise HTTPException(status_code=400, detail="bucket must be 'day' or 'hour'")
+
+    agg = defaultdict(float)
+    for r in records:
+        ts = _parse_ts(r["timestamp"])
+        key = ts.strftime("%Y-%m-%d") if bucket == "day" else ts.strftime("%Y-%m-%d %H:00")
+        agg[key] += float(r.get("metric_value", 0.0))
+
+    series = [{"bucket": k, "metric_sum": agg[k]} for k in sorted(agg.keys())]
+    return {"device_id": effective_device_id, "is_admin": is_admin, "bucket": bucket, "series": series}
+
+@app.get("/api/device-counts")
+def device_counts(user=Depends(get_current_user)):
+    groups = user.get("cognito:groups") or []
+    is_admin = "admin" in groups
+    user_device = user.get("custom:device_id")
+
+    if not is_admin:
+        if not user_device:
+            raise HTTPException(status_code=403, detail="User has no custom:device_id claim; access denied")
+        payload = read_latest_device_json(user_device)
+        return {"devices": [{"device_id": user_device, "record_count": len(payload.get("records", []))}]}
+
+    devices = list_latest_devices()
+    out = []
+    for d in devices:
+        payload = read_latest_device_json(d)
+        out.append({"device_id": d, "record_count": len(payload.get("records", []))})
+
+    # sort desc by count
+    out.sort(key=lambda x: x["record_count"], reverse=True)
+    return {"devices": out}
 
 
 

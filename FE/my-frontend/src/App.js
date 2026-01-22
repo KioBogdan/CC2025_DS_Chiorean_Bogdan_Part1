@@ -1,6 +1,17 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { signIn, signOut, fetchAuthSession, confirmSignIn } from "aws-amplify/auth";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+} from "recharts";
 
 function decodeJwtPayload(token) {
   const payload = token.split(".")[1];
@@ -15,7 +26,7 @@ function decodeJwtPayload(token) {
 }
 
 function App() {
-  const [message, setMessage] = useState(""); // backend message
+  const [message, setMessage] = useState("");
 
   // Auth state
   const [email, setEmail] = useState("");
@@ -27,9 +38,19 @@ function App() {
   const [needsNewPassword, setNeedsNewPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
 
-  const connectToBackend = () => {
-    const apiBaseUrl = process.env.REACT_APP_LOCAL_URL; //change with LOCAL_URL if local testing, otherwise REACT_APP_UI_AZURE_URL
+  // Final dashboard state
+  const [devices, setDevices] = useState([]); // admin list
+  const [selectedDevice, setSelectedDevice] = useState("");
+  const [latestRecords, setLatestRecords] = useState([]);
+  const [trendSeries, setTrendSeries] = useState([]);
+  const [deviceCounts, setDeviceCounts] = useState([]);
+  const [dashStatus, setDashStatus] = useState("");
 
+  const apiBaseUrl = useMemo(() => {
+    return process.env.REACT_APP_LOCAL_URL || process.env.REACT_APP_UI_AZURE_URL;
+  }, []);
+
+  const connectToBackend = () => {
     fetch(`${apiBaseUrl}/api/connect`)
       .then((response) => {
         if (!response.ok) throw new Error("Network response was not ok");
@@ -42,12 +63,27 @@ function App() {
       });
   };
 
+  async function apiGet(path) {
+    const session = await fetchAuthSession({ forceRefresh: true });
+    const idToken = session.tokens?.idToken?.toString();
+    if (!idToken) throw new Error("No token. Please sign in again.");
+
+    const res = await fetch(`${apiBaseUrl}${path}`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`API ${res.status}: ${txt}`);
+    }
+    return res.json();
+  }
+
   const loadSessionAndClaims = async () => {
     const session = await fetchAuthSession({ forceRefresh: true });
-    const idToken = session.tokens?.idToken?.toString(); 
-    console.log("JWT (use in Swagger as Bearer):", idToken); //only if needed for local testing
+    const idToken = session.tokens?.idToken?.toString();
 
-    const apiBaseUrl = process.env.REACT_APP_LOCAL_URL; //change with LOCAL_URL if local testing, otherwise REACT_APP_UI_AZURE_URL
+    console.log("JWT (use in Swagger as Bearer):", idToken);
 
     if (!idToken) {
       setAuthStatus("Signed in, but still no ID token (unexpected).");
@@ -56,25 +92,35 @@ function App() {
 
     const payload = decodeJwtPayload(idToken);
 
+    const groups = payload["cognito:groups"] || [];
+    const isAdmin = Array.isArray(groups) && groups.includes("admin");
+    const deviceId = payload["custom:device_id"] || null;
+
     setClaims({
       email: payload.email,
-      groups: payload["cognito:groups"] || [],
-      deviceId: payload["custom:device_id"] || null,
+      groups,
+      deviceId,
       issuer: payload.iss,
       exp: payload.exp,
+      isAdmin,
     });
-    
-    console.log("apiBaseUrl runtime:", apiBaseUrl);
-    console.log("profile url:", `${apiBaseUrl}/api/profile`);
 
+    // Best default selection:
+    // - admin: blank until they choose (or we can pick first device once loaded)
+    // - user: force their assigned device
+    if (!isAdmin && deviceId) {
+      setSelectedDevice(deviceId);
+    }
+
+    // sanity call
     fetch(`${apiBaseUrl}/api/profile`, {
       headers: { Authorization: `Bearer ${idToken}` },
     })
       .then((r) => r.json())
       .then((data) => console.log("Backend /api/profile:", data))
       .catch((err) => console.error("Profile call failed:", err));
-    setAuthStatus("Signed in");
 
+    setAuthStatus("Signed in");
   };
 
   const handleLogin = async () => {
@@ -85,20 +131,19 @@ function App() {
         region: process.env.REACT_APP_AWS_REGION,
         poolId: process.env.REACT_APP_COGNITO_USER_POOL_ID,
         clientId: process.env.REACT_APP_COGNITO_CLIENT_ID,
+        apiBaseUrl,
       });
 
       const res = await signIn({ username: email, password });
       console.log("signIn result:", res);
       console.log("nextStep:", res?.nextStep);
 
-      // Cognito created users often require setting a new password on first sign-in
       if (res?.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
         setNeedsNewPassword(true);
         setAuthStatus("New password required. Enter a new password and confirm.");
         return;
       }
 
-      // Otherwise, tokens should be available
       await loadSessionAndClaims();
     } catch (e) {
       console.error("Login error:", e);
@@ -117,7 +162,6 @@ function App() {
 
       await confirmSignIn({ challengeResponse: newPassword });
 
-      // Challenge complete — now tokens should exist
       setNeedsNewPassword(false);
       setNewPassword("");
       await loadSessionAndClaims();
@@ -134,16 +178,88 @@ function App() {
       setAuthStatus("Signed out");
       setNeedsNewPassword(false);
       setNewPassword("");
+
+      // clear dashboard state
+      setDevices([]);
+      setSelectedDevice("");
+      setLatestRecords([]);
+      setTrendSeries([]);
+      setDeviceCounts([]);
+      setDashStatus("");
     } catch (e) {
       console.error(e);
       setAuthStatus(`Sign out failed: ${e?.message || e}`);
     }
   };
 
+  // Load device list for admins after login
+  useEffect(() => {
+    const run = async () => {
+      if (!claims?.isAdmin) return;
+      try {
+        setDashStatus("Loading devices...");
+        const data = await apiGet("/api/devices");
+        const list = data.devices || [];
+        setDevices(list);
+
+        // pick first device by default if none selected
+        if (!selectedDevice && list.length > 0) setSelectedDevice(list[0]);
+        setDashStatus("");
+      } catch (e) {
+        console.error(e);
+        setDashStatus(`Failed to load devices: ${e.message}`);
+      }
+    };
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claims?.isAdmin]);
+
+  const loadLatest = async () => {
+    try {
+      setDashStatus("Loading latest table...");
+      const q = selectedDevice ? `?device_id=${encodeURIComponent(selectedDevice)}&limit=200` : "?limit=200";
+      const data = await apiGet(`/api/latest${q}`);
+      setLatestRecords(data.records || []);
+      setDashStatus("");
+    } catch (e) {
+      console.error(e);
+      setDashStatus(`Latest load failed: ${e.message}`);
+    }
+  };
+
+  const loadTrend = async () => {
+    try {
+      setDashStatus("Loading trend...");
+      const q = selectedDevice
+        ? `?device_id=${encodeURIComponent(selectedDevice)}&bucket=day`
+        : "?bucket=day";
+      const data = await apiGet(`/api/trend${q}`);
+      setTrendSeries(data.series || []);
+      setDashStatus("");
+    } catch (e) {
+      console.error(e);
+      setDashStatus(`Trend load failed: ${e.message}`);
+    }
+  };
+
+  const loadCounts = async () => {
+    try {
+      setDashStatus("Loading device counts...");
+      const data = await apiGet("/api/device-counts");
+      setDeviceCounts(data.devices || []);
+      setDashStatus("");
+    } catch (e) {
+      console.error(e);
+      setDashStatus(`Counts load failed: ${e.message}`);
+    }
+  };
+
+  const showDashboard = Boolean(claims);
+
   return (
     <div className="App">
       <header className="App-header" style={{ gap: 16 }}>
-        <h1>Part 1 - Test connection</h1>
+        <h1>Cloud Computing Project</h1>
 
         {/* Existing backend test */}
         <button onClick={connectToBackend}>Connect backend</button>
@@ -151,8 +267,8 @@ function App() {
 
         <hr style={{ width: "80%" }} />
 
-        {/* Cognito auth test (no Hosted UI) */}
-        <h2>P3 - Cognito Auth Test</h2>
+        {/* Auth */}
+        <h2>Auth (AWS Cognito)</h2>
 
         <div style={{ display: "flex", gap: 8 }}>
           <input
@@ -175,7 +291,6 @@ function App() {
           <button onClick={handleLogout}>Sign out</button>
         </div>
 
-        {/* Only show this when Cognito requires new password on first login */}
         {needsNewPassword && (
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <input
@@ -205,6 +320,115 @@ function App() {
           >
             {JSON.stringify(claims, null, 2)}
           </pre>
+        )}
+
+        {/* FINAL DASHBOARD */}
+        {showDashboard && (
+          <>
+            <hr style={{ width: "80%" }} />
+            <h2>Final Project Dashboard</h2>
+
+            {/* Device selector */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ fontSize: 14 }}>
+                Device:
+              </div>
+
+              {claims?.isAdmin ? (
+                <select
+                  value={selectedDevice}
+                  onChange={(e) => setSelectedDevice(e.target.value)}
+                  style={{ padding: 8, minWidth: 220 }}
+                >
+                  {devices.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ padding: 8, background: "#f6f6f6", color: "#111", borderRadius: 6 }}>
+                  {selectedDevice || "(no device assigned)"}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={loadLatest}>Load Latest Table</button>
+              <button onClick={loadTrend}>Load Trend</button>
+              <button onClick={loadCounts}>Load Device Counts</button>
+            </div>
+
+            {dashStatus && <p>{dashStatus}</p>}
+
+            {/* 1) Latest table */}
+            {latestRecords.length > 0 && (
+              <div style={{ width: "90%", maxWidth: 1100, background: "#fff", color: "#111", padding: 12, borderRadius: 12 }}>
+                <h3 style={{ marginTop: 0 }}>Latest Dataset (Table)</h3>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        {["timestamp", "metric_value", "item_id", "qty", "unit_price", "store"].map((h) => (
+                          <th key={h} style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {latestRecords.map((r, idx) => (
+                        <tr key={idx}>
+                          <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.timestamp}</td>
+                          <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.metric_value}</td>
+                          <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.item_id}</td>
+                          <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.qty}</td>
+                          <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.unit_price}</td>
+                          <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{r.store}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 2) Trend line chart */}
+            {trendSeries.length > 0 && (
+              <div style={{ width: "90%", maxWidth: 1100, background: "#fff", color: "#111", padding: 12, borderRadius: 12 }}>
+                <h3 style={{ marginTop: 0 }}>Historical Trend (Line)</h3>
+                <div style={{ width: "100%", height: 320 }}>
+                  <ResponsiveContainer>
+                    <LineChart data={trendSeries}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="bucket" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="metric_sum" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* 3) Device counts bar chart */}
+            {deviceCounts.length > 0 && (
+              <div style={{ width: "90%", maxWidth: 1100, background: "#fff", color: "#111", padding: 12, borderRadius: 12 }}>
+                <h3 style={{ marginTop: 0 }}>Records per Device (Bar)</h3>
+                <div style={{ width: "100%", height: 320 }}>
+                  <ResponsiveContainer>
+                    <BarChart data={deviceCounts}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="device_id" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="record_count" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </header>
     </div>

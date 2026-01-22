@@ -1,0 +1,37 @@
+@startuml
+title Final - Sequence Diagram (Upload -> ETL -> Notify -> Visualize)
+
+actor "Student" as User
+participant "Storage (raw container)" as Raw
+participant "Azure Data Factory" as ADF
+participant "Blob Storage (processed)" as Proc
+participant "Azure Function (trigger)" as Func
+participant "Teams Channel" as Teams
+participant "React Frontend" as FE
+participant "AWS Cognito" as Cognito
+participant "FastAPI Backend" as API
+
+== Ingestion ==
+User -> Raw : Upload CSV file
+
+Raw -> ADF : (Pipeline triggered / scheduled)
+ADF -> ADF : Transform CSV -> JSON\nGroup by device_id\nCreate latest + history
+ADF -> Proc : Write processed/latest/<device>.json\nWrite processed/by-timestamp/...json
+
+== Notification ==
+Proc -> Func : Blob trigger (new/updated output)
+Func -> Teams : Post notification\n(success/fail + details)
+
+== Visualization ==
+User -> FE : Open dashboard
+FE -> Cognito : Sign in
+Cognito --> FE : idToken (JWT)
+
+FE -> API : GET /api/latest|trend|device-counts\nAuthorization: Bearer JWT
+API -> Cognito : Verify JWT (JWKS)
+API -> Proc : Read latest/<device>.json\n(filter by role/device claim)
+Proc --> API : JSON payload
+API --> FE : Data for table + charts
+FE --> User : Render table + charts
+
+@enduml
