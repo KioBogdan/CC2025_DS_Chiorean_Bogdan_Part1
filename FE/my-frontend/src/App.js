@@ -404,7 +404,7 @@ function App() {
                       <XAxis dataKey="bucket" />
                       <YAxis />
                       <Tooltip />
-                      <Line type="monotone" dataKey="metric_sum" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="total_value" strokeWidth={2} dot={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
