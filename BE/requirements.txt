@@ -12,7 +12,7 @@ pandas==2.2.2
 polars==1.27.0
 protobuf==4.25.3
 pyasn1>=0.5.0
-pyasn1-modules==0.2.8
+# pyasn1-modules==0.2.8 -- conflict-inducer
 python-dotenv==1.0.1
 # pywin32 removed — Windows-only, not needed on Linux/Mac
 # PyQt5 removed — can be installed separately if GUI needed
