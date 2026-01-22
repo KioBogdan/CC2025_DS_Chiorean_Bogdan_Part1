@@ -1,6 +1,5 @@
 ﻿appdirs==1.4.4
 azure-storage-blob
-azure-core-exceptions
 atomicwrites==1.4.0
 databricks-cli==0.18.0
 duckdb==1.2.2
