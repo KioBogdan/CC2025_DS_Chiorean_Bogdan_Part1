@@ -130,28 +130,64 @@ def latest_table(
         "records": records_sorted[:limit],
     }
 
+def _to_float(x, default: float = 0.0) -> float:
+    try:
+        return float(x)
+    except Exception:
+        return default
+    
 @app.get("/api/trend")
 def trend(
     device_id: str | None = Query(default=None),
     bucket: str = Query(default="day"),  # "day" or "hour"
     user=Depends(get_current_user),
 ):
+    """
+    Sales trend computed as:
+      total_value per bucket = sum(qty * unit_price)
+      total_qty per bucket   = sum(qty)
+    where qty and unit_price may be strings in the JSON records.
+    """
     effective_device_id, is_admin = _get_effective_device_id(device_id, user)
 
     payload = read_latest_device_json(effective_device_id)
     records = payload.get("records", [])
 
     if bucket not in ("day", "hour"):
-        raise HTTPException(status_code=400, detail="bucket must be 'day' or 'hour'")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="bucket must be 'day' or 'hour'")
 
-    agg = defaultdict(float)
+    agg_value = defaultdict(float)
+    agg_qty = defaultdict(float)
+
     for r in records:
-        ts = _parse_ts(r["timestamp"])
-        key = ts.strftime("%Y-%m-%d") if bucket == "day" else ts.strftime("%Y-%m-%d %H:00")
-        agg[key] += float(r.get("metric_value", 0.0))
+        ts_raw = r.get("timestamp")
+        if not ts_raw:
+            continue
 
-    series = [{"bucket": k, "metric_sum": agg[k]} for k in sorted(agg.keys())]
-    return {"device_id": effective_device_id, "is_admin": is_admin, "bucket": bucket, "series": series}
+        ts = _parse_ts(ts_raw)
+        key = ts.strftime("%Y-%m-%d") if bucket == "day" else ts.strftime("%Y-%m-%d %H:00")
+
+        qty = _to_float(r.get("qty", 0))
+        unit_price = _to_float(r.get("unit_price", 0))
+
+        agg_qty[key] += qty
+        agg_value[key] += qty * unit_price
+
+    series = [
+        {
+            "bucket": k,
+            "total_qty": round(agg_qty[k], 2),
+            "total_value": round(agg_value[k], 2),
+        }
+        for k in sorted(agg_value.keys())
+    ]
+
+    return {
+        "device_id": effective_device_id,
+        "is_admin": is_admin,
+        "bucket": bucket,
+        "series": series,
+    }
 
 @app.get("/api/device-counts")
 def device_counts(user=Depends(get_current_user)):
