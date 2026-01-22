@@ -3,7 +3,8 @@ name: Build and deploy Python app to Azure Web App - cc2025-api-2
 on:
   push:
     branches:
-      - [ "main", "final" ]
+      - main
+      - final 
     paths:
       - 'BE/**'
       - '.github/workflows/main_cc2025-api-2.yml'
